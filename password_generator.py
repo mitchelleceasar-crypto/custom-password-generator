@@ -1,5 +1,7 @@
+import argparse
 import secrets
 import string
+import sys
 import pyperclip
 
 def evaluate_strength(pwd):
@@ -45,23 +47,22 @@ def generate_password(length, use_upper, use_lower, use_digits, use_symbols):
             f"from each of the {len(categories)} selected categories."
         )
 
-    # Pick 1 guaranteed character from each category
+    # Guarantee at least 1 character from each chosen category
     password_chars = [secrets.choice(pool) for pool in categories]
 
-    # Fill the remainder randomly from the full active pool
+    # Fill the remaining length
     all_allowed = "".join(categories)
     remaining_length = length - len(password_chars)
     password_chars.extend(secrets.choice(all_allowed) for _ in range(remaining_length))
 
-    # Cryptographically shuffle
+    # Secure shuffle
     secure_random = secrets.SystemRandom()
     secure_random.shuffle(password_chars)
 
     return "".join(password_chars)
 
-def main():
+def run_interactive_mode():
     print("=== Cryptographically Secure Password Generator ===")
-
     while True:
         try:
             length_input = input("\nEnter desired password length (e.g., 16): ").strip()
@@ -79,26 +80,70 @@ def main():
         use_symbols = input("Include special characters (!@#$)? (y/n): ").strip().lower() == 'y'
 
         try:
-            password = generate_password(length, use_upper, use_lower, use_digits, use_symbols)
-            strength = evaluate_strength(password)
-
-            # Copy to clipboard
-            pyperclip.copy(password)
+            pwd = generate_password(length, use_upper, use_lower, use_digits, use_symbols)
+            strength = evaluate_strength(pwd)
+            pyperclip.copy(pwd)
 
             print("\n" + "=" * 48)
-            print(f"Generated Password : {password}")
+            print(f"Generated Password : {pwd}")
             print(f"Password Strength  : {strength}")
             print("✓ Copied to clipboard automatically!")
             print("=" * 48)
-
         except ValueError as e:
             print(f"\nConfiguration Error: {e}")
 
-        # Prompt to repeat or exit
         repeat = input("\nGenerate another password? (y/n): ").strip().lower()
         if repeat != 'y':
-            print("\nThank you for using Password Generator. Goodbye!")
+            print("\nGoodbye!")
             break
+
+def parse_cli_args():
+    parser = argparse.ArgumentParser(
+        description="Generate secure, randomized passwords from the command line."
+    )
+    parser.add_argument("-l", "--length", type=int, default=16, help="Password length (default: 16)")
+    parser.add_argument("--no-upper", action="store_true", help="Exclude uppercase letters")
+    parser.add_argument("--no-lower", action="store_true", help="Exclude lowercase letters")
+    parser.add_argument("--no-digits", action="store_true", help="Exclude numeric digits")
+    parser.add_argument("--no-symbols", action="store_true", help="Exclude special punctuation characters")
+    parser.add_argument("-c", "--count", type=int, default=1, help="Number of passwords to generate (default: 1)")
+
+    return parser.parse_args()
+
+def main():
+    # If no flags/arguments were passed, launch interactive prompt mode
+    if len(sys.argv) == 1:
+        run_interactive_mode()
+        return
+
+    # Otherwise, parse CLI flags
+    args = parse_cli_args()
+
+    use_upper = not args.no_upper
+    use_lower = not args.no_lower
+    use_digits = not args.no_digits
+    use_symbols = not args.no_symbols
+
+    try:
+        passwords = [
+            generate_password(args.length, use_upper, use_lower, use_digits, use_symbols)
+            for _ in range(args.count)
+        ]
+
+        # Copy the first (or only) generated password to the clipboard
+        pyperclip.copy(passwords[0])
+
+        print("=" * 48)
+        for idx, pwd in enumerate(passwords, start=1):
+            strength = evaluate_strength(pwd)
+            label = f"Password {idx}" if args.count > 1 else "Password"
+            print(f"{label:<12}: {pwd}  [{strength}]")
+        print("✓ Copied to clipboard automatically!")
+        print("=" * 48)
+
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
