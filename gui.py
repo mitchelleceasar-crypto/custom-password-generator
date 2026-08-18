@@ -7,6 +7,9 @@ import pyperclip
 # --- Core Logic ---
 
 def evaluate_strength(pwd):
+    if not pwd:
+        return "Enter a password", 0, "#cccccc"
+
     score = 0
     if len(pwd) >= 16:
         score += 3
@@ -22,13 +25,12 @@ def evaluate_strength(pwd):
     if any(c in string.punctuation for c in pwd):
         score += 1
 
-    # Return (label, progress_percentage, hex_color)
     if score >= 5:
         return "Strong", 100, "#28a745"   # Green
     elif score >= 3:
-        return "Medium", 60, "#ffc107"   # Yellow / Amber
+        return "Medium", 60, "#ffc107"    # Yellow / Amber
     else:
-        return "Weak", 25, "#dc3545"     # Red
+        return "Weak", 25, "#dc3545"      # Red
 
 def generate_password(length, use_upper, use_lower, use_digits, use_symbols):
     categories = []
@@ -47,25 +49,21 @@ def generate_password(length, use_upper, use_lower, use_digits, use_symbols):
     if length < len(categories):
         raise ValueError(f"Length ({length}) is too short for the {len(categories)} selected sets.")
 
-    # Guaranteed pick from each enabled group
     password_chars = [secrets.choice(pool) for pool in categories]
-
-    # Fill remaining slots
     all_allowed = "".join(categories)
     remaining = length - len(password_chars)
     password_chars.extend(secrets.choice(all_allowed) for _ in range(remaining))
 
-    # Secure shuffle
     secrets.SystemRandom().shuffle(password_chars)
     return "".join(password_chars)
 
-# --- GUI Application Class ---
+# --- GUI Application ---
 
 class PasswordGeneratorApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Secure Password Generator")
-        self.root.geometry("460x520")
+        self.root.title("Password Studio: Generator & Tester")
+        self.root.geometry("480x620")
         self.root.resizable(False, False)
 
         # State variables
@@ -76,39 +74,45 @@ class PasswordGeneratorApp:
         self.symbols_var = tk.BooleanVar(value=True)
 
         self.setup_ui()
-        self.on_generate()  # Generate initial password on startup
+        self.on_generate()
 
     def setup_ui(self):
-        # Main container frame with padding
-        container = ttk.Frame(self.root, padding=20)
+        container = ttk.Frame(self.root, padding=16)
         container.pack(fill="both", expand=True)
 
-        # Output Field Frame
-        output_frame = ttk.LabelFrame(container, text="Generated Password", padding=10)
-        output_frame.pack(fill="x", pady=(0, 15))
+        # 1. Custom / Manual Password Testing Area
+        test_frame = ttk.LabelFrame(container, text="Type & Test Your Own Password (Live)", padding=10)
+        test_frame.pack(fill="x", pady=(0, 12))
 
-        self.pwd_entry = ttk.Entry(output_frame, font=("Consolas", 13), justify="center")
-        self.pwd_entry.pack(fill="x", pady=(0, 8))
+        self.custom_entry = ttk.Entry(test_frame, font=("Consolas", 11))
+        self.custom_entry.pack(fill="x", pady=(0, 6))
+        # Listen for keypress events to update strength instantly
+        self.custom_entry.bind("<KeyRelease>", self.on_custom_type)
 
-        copy_btn = ttk.Button(output_frame, text="📋 Copy to Clipboard", command=self.on_copy)
-        copy_btn.pack()
-
-        # Strength Meter Frame
+        # 2. Strength Indicator
         strength_frame = ttk.LabelFrame(container, text="Strength Indicator", padding=10)
-        strength_frame.pack(fill="x", pady=(0, 15))
+        strength_frame.pack(fill="x", pady=(0, 12))
 
         self.strength_label = ttk.Label(strength_frame, text="Strength: Evaluating...", font=("Segoe UI", 9, "bold"))
         self.strength_label.pack(anchor="w", pady=(0, 5))
 
-        # Canvas used as a custom colored progress bar
         self.bar_canvas = tk.Canvas(strength_frame, height=12, bg="#e0e0e0", highlightthickness=0)
         self.bar_canvas.pack(fill="x")
 
-        # Configuration Settings Frame
-        settings_frame = ttk.LabelFrame(container, text="Preferences", padding=10)
-        settings_frame.pack(fill="x", pady=(0, 15))
+        # 3. Generator Output Box
+        gen_frame = ttk.LabelFrame(container, text="Generated Password", padding=10)
+        gen_frame.pack(fill="x", pady=(0, 12))
 
-        # Length Slider
+        self.pwd_entry = ttk.Entry(gen_frame, font=("Consolas", 12), justify="center")
+        self.pwd_entry.pack(fill="x", pady=(0, 6))
+
+        copy_btn = ttk.Button(gen_frame, text="📋 Copy Generated Password", command=self.on_copy)
+        copy_btn.pack()
+
+        # 4. Generator Controls
+        settings_frame = ttk.LabelFrame(container, text="Generator Settings", padding=10)
+        settings_frame.pack(fill="x", pady=(0, 12))
+
         slider_header = ttk.Frame(settings_frame)
         slider_header.pack(fill="x")
         ttk.Label(slider_header, text="Length:").pack(side="left")
@@ -123,25 +127,24 @@ class PasswordGeneratorApp:
             orient="horizontal",
             command=self.update_length_display
         )
-        self.slider.pack(fill="x", pady=(4, 10))
+        self.slider.pack(fill="x", pady=(2, 6))
 
-        # Character Set Checkboxes
-        ttk.Checkbutton(settings_frame, text="Include Uppercase Letters (A-Z)", variable=self.upper_var).pack(anchor="w", pady=2)
-        ttk.Checkbutton(settings_frame, text="Include Lowercase Letters (a-z)", variable=self.lower_var).pack(anchor="w", pady=2)
-        ttk.Checkbutton(settings_frame, text="Include Numbers (0-9)", variable=self.digits_var).pack(anchor="w", pady=2)
-        ttk.Checkbutton(settings_frame, text="Include Special Characters (!@#$)", variable=self.symbols_var).pack(anchor="w", pady=2)
+        ttk.Checkbutton(settings_frame, text="Include Uppercase (A-Z)", variable=self.upper_var).pack(anchor="w", pady=1)
+        ttk.Checkbutton(settings_frame, text="Include Lowercase (a-z)", variable=self.lower_var).pack(anchor="w", pady=1)
+        ttk.Checkbutton(settings_frame, text="Include Numbers (0-9)", variable=self.digits_var).pack(anchor="w", pady=1)
+        ttk.Checkbutton(settings_frame, text="Include Special Characters (!@#$)", variable=self.symbols_var).pack(anchor="w", pady=1)
 
-        # Generate Action Button
+        # 5. Generate Button
         generate_btn = tk.Button(
             container,
-            text="Generate New Password",
+            text="🎲 Generate Secure Password",
             font=("Segoe UI", 10, "bold"),
             bg="#007acc",
             fg="white",
             activebackground="#005999",
             activeforeground="white",
             relief="flat",
-            pady=8,
+            pady=6,
             command=self.on_generate
         )
         generate_btn.pack(fill="x")
@@ -153,9 +156,16 @@ class PasswordGeneratorApp:
         self.bar_canvas.delete("all")
         width = self.bar_canvas.winfo_width()
         if width <= 1:
-            width = 400  # Fallback for initial render before geometry stabilizes
+            width = 420
         fill_width = (percentage / 100) * width
         self.bar_canvas.create_rectangle(0, 0, fill_width, 12, fill=color, outline="")
+
+    def on_custom_type(self, event=None):
+        """Evaluates custom password typed by user in real-time."""
+        user_pwd = self.custom_entry.get()
+        strength, pct, color = evaluate_strength(user_pwd)
+        self.strength_label.config(text=f"Custom Password Strength: {strength}", foreground=color)
+        self.update_strength_bar(pct, color)
 
     def on_generate(self):
         try:
@@ -169,8 +179,11 @@ class PasswordGeneratorApp:
             self.pwd_entry.delete(0, tk.END)
             self.pwd_entry.insert(0, pwd)
 
+            # Clear custom input so indicator focuses on generated output
+            self.custom_entry.delete(0, tk.END)
+
             strength, pct, color = evaluate_strength(pwd)
-            self.strength_label.config(text=f"Strength: {strength}", foreground=color)
+            self.strength_label.config(text=f"Generated Strength: {strength}", foreground=color)
             self.root.update_idletasks()
             self.update_strength_bar(pct, color)
 
@@ -181,7 +194,7 @@ class PasswordGeneratorApp:
         pwd = self.pwd_entry.get()
         if pwd:
             pyperclip.copy(pwd)
-            messagebox.showinfo("Copied", "Password copied to clipboard!")
+            messagebox.showinfo("Copied", "Generated password copied to clipboard!")
 
 if __name__ == "__main__":
     root = tk.Tk()
