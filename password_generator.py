@@ -1,5 +1,6 @@
 import secrets
 import string
+import pyperclip
 
 def evaluate_strength(pwd):
     score = 0
@@ -88,6 +89,8 @@ def main():
         print(f"Generated Password : {password}")
         print(f"Password Strength  : {strength}")
         print("=" * 48)
+        pyperclip.copy(password)
+        print("Password copied to clipboard.")
     except ValueError as e:
         print(f"\nError: {e}")
 
